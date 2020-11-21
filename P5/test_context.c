@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include "ucontext.h"
+#include <ucontext.h>
 #include "my_timer.h"
 
 #define PPOS_TASK_STACK_SIZE 32000
@@ -23,12 +23,12 @@ int create_task(task_t *task,               // descritor da nova tarefa
 {
     int ret;
     char *stack;
+    stack = (char *)malloc(sizeof(char) * PPOS_TASK_STACK_SIZE);
     ret = getcontext(&task->context);
-    if (!ret)
+    if (ret)
     {
         return ret;
     }
-    stack = malloc(PPOS_TASK_STACK_SIZE);
     if (stack)
     {
         task->context.uc_stack.ss_sp = stack;
@@ -42,11 +42,7 @@ int create_task(task_t *task,               // descritor da nova tarefa
         return 1;
     }
 
-    ret = makecontext(&task->context, (void *)(*start_func), 1, arg);
-    if (!ret)
-    {
-        return ret;
-    }
+    makecontext(&task->context, (void *)(*start_func), 1, arg);
     return 0;
 }
 
@@ -54,7 +50,7 @@ void body(void *arg)
 {
     char *s = (char *)arg;
     printf("%s init\n", s);
-    for (int i = 0; i < 0; i++)
+    for (int i = 0; i < 5; i++)
     {
         printf("%s %d\n", s, i);
     }

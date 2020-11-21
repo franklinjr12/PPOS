@@ -29,7 +29,7 @@ void Body(void *arg)
    int i;
 
    printf("%s: inicio\n", (char *)arg);
-   for (i = 0; i < 10; i++)
+   for (i = 0; i < 2; i++)
    {
       printf("%s: %d\n", (char *)arg, i);
       hardwork(WORKLOAD);
