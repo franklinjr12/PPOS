@@ -3,8 +3,8 @@
 
 #include <stdlib.h>
 
-// #define LINUX
-#define WINDOWS
+#define LINUX
+// #define WINDOWS
 #define MY_TIMER_US 1000 //1000us
 
 #if defined LINUX
