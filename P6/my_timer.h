@@ -3,11 +3,9 @@
 
 #include <stdlib.h>
 
-#define LINUX
-// #define WINDOWS
 #define MY_TIMER_US 1000 //1000us
 
-#if defined LINUX
+#if defined _unix_
 #include <sys/time.h>
 #include <signal.h>
 #include <stdio.h>

@@ -1,7 +1,12 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <ucontext.h>
 #include "my_timer.h"
+
+#if defined _WIN32
+#include "ucontext.h"
+#else
+#include <ucontext.h>
+#endif
 
 #define PPOS_TASK_STACK_SIZE 32000
 
@@ -16,6 +21,13 @@ typedef struct task_t
     int quantum;
     int user_task; //if equals 1 then it is an user task and can be preempted
 } task_t;
+
+task_t *current;
+task_t *last;
+task_t tmain;
+task_t t1;
+task_t t2;
+unsigned int g_sec = 0;
 
 int create_task(task_t *task,               // descritor da nova tarefa
                 void (*start_func)(void *), // funcao corpo da tarefa
@@ -52,18 +64,28 @@ void body(void *arg)
     printf("%s init\n", s);
     for (int i = 0; i < 5; i++)
     {
+        int sec = g_sec;
+        while (g_sec <= sec)
+            ;
         printf("%s %d\n", s, i);
     }
     printf("%s end\n", s);
+    swapcontext(&current->context, &last->context);
+}
+
+void inc_sec(void)
+{
+    g_sec++;
 }
 
 int main(int argc, char *argv[])
 {
     printf("Testing ucontext and my_timer\n");
 
+    my_timer_init((void *)(inc_sec), 1, 0);
+
     int err;
 
-    task_t tmain;
     char smain[] = "taskmain";
     err = create_task(&tmain, (void *)(*main), (void *)smain);
     if (err)
@@ -72,7 +94,6 @@ int main(int argc, char *argv[])
         exit(0);
     }
 
-    task_t t1;
     char s1[] = "task1";
     err = create_task(&t1, body, (void *)s1);
     if (err)
@@ -81,7 +102,6 @@ int main(int argc, char *argv[])
         exit(0);
     }
 
-    task_t t2;
     char s2[] = "task2";
     err = create_task(&t2, body, (void *)s2);
     if (err)
@@ -90,6 +110,8 @@ int main(int argc, char *argv[])
         exit(0);
     }
 
+    last = &tmain;
+    current = &t1;
     err = swapcontext(&tmain.context, &t1.context);
     if (err)
     {
@@ -97,6 +119,8 @@ int main(int argc, char *argv[])
         exit(0);
     }
 
+    last = &tmain;
+    current = &t2;
     err = swapcontext(&tmain.context, &t2.context);
     if (err)
     {

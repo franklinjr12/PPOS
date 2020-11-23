@@ -1,6 +1,6 @@
 #include "my_timer.h"
 
-#if defined LINUX
+#if defined _unix_
 
 int my_timer_init(void (*_handler)(int), unsigned int _s, unsigned long _us)
 {

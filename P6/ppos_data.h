@@ -7,12 +7,12 @@
 #ifndef __PPOS_DATA__
 #define __PPOS_DATA__
 
-// #define WINDOWS
-#if defined WINDOWS
+#if defined _WIN32
 #include "ucontext.h"
 #else
 #include <ucontext.h> // biblioteca POSIX de trocas de contexto
 #endif
+
 #include "queue.h" // biblioteca de filas genéricas
 
 // Estrutura que define um Task Control Block (TCB)
