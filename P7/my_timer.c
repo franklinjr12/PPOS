@@ -1,6 +1,18 @@
 #include "my_timer.h"
 
-#if defined _unix_
+#if defined _WIN32
+
+#include <stdio.h>
+
+int my_timer_init(void (*_handler)(int), unsigned int _s, unsigned long _us)
+{
+    int s = 1000 * _s;
+    int us = _us / 1000;
+    void (*handler)(void) = (void *)(*_handler);
+    start_timer(s + us, handler);
+}
+
+#else
 
 int my_timer_init(void (*_handler)(int), unsigned int _s, unsigned long _us)
 {
@@ -28,17 +40,6 @@ int my_timer_init(void (*_handler)(int), unsigned int _s, unsigned long _us)
     }
 
     return 0;
-}
-
-#else
-#include <stdio.h>
-
-int my_timer_init(void (*_handler)(int), unsigned int _s, unsigned long _us)
-{
-    int s = 1000 * _s;
-    int us = _us / 1000;
-    void (*handler)(void) = (void *)(*_handler);
-    start_timer(s + us, handler);
 }
 
 #endif //defined LINUX

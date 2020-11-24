@@ -7,7 +7,6 @@ int ppos_task_id_actual;
 int ppos_interrupt_disable = 0;
 char *ppos_task_stack;
 task_t ppos_task_controller;
-task_t ppos_task_last;
 struct _ppos_scheduler ppos_scheduler;
 unsigned int ppos_systime = 0;
 
@@ -18,39 +17,13 @@ void ppos_init()
 
     ppos_task_id_counter = 0;
     ppos_task_id_actual = 0;
-    // ppos_task_stack = malloc(PPOS_TASK_STACK_SIZE);
-    char *stack = malloc(PPOS_TASK_STACK_SIZE);
-    getcontext(&ppos_task_controller.context);
-    ppos_task_controller.id = 0;
-    if (stack)
-    {
-        ppos_task_controller.context.uc_stack.ss_sp = stack;
-        ppos_task_controller.context.uc_stack.ss_size = PPOS_TASK_STACK_SIZE;
-        ppos_task_controller.context.uc_stack.ss_flags = 0;
-        ppos_task_controller.context.uc_link = 0;
-    }
-    else
-    {
-        perror("Erro na criação da pilha: ");
-        return;
-    }
-
-    ppos_task_controller.user_task = 1;
-    ppos_task_controller.quantum = QUANTUM_INIT;
-    queue_t *q = (queue_t *)&ppos_task_controller;
-    queue_append((queue_t **)&q, (queue_t *)&ppos_task_controller);
-
-    // makecontext(&ppos_task_controller.context, ppos_init, 0);
-    makecontext(&ppos_task_controller.context, (void *)(*main), 0);
-    ppos_task_last = ppos_task_controller;
 
     //init of scheduler
-    ppos_scheduler.current = -1;
-    ppos_scheduler.user_tasks = 1;
+    ppos_scheduler.user_tasks = 0;
     ppos_scheduler.queue = NULL;
 
     getcontext(&ppos_scheduler.dispatcher.context);
-    stack = malloc(PPOS_TASK_STACK_SIZE);
+    char *stack = malloc(PPOS_TASK_STACK_SIZE);
     if (stack)
     {
         ppos_scheduler.dispatcher.context.uc_stack.ss_sp = stack;
@@ -66,6 +39,59 @@ void ppos_init()
 
     ppos_scheduler.dispatcher.user_task = 0;
     makecontext(&ppos_scheduler.dispatcher.context, (void *)(*ppos_dispatcher), 0, NULL);
+
+    // ppos_task_stack = malloc(PPOS_TASK_STACK_SIZE);
+    // stack = malloc(PPOS_TASK_STACK_SIZE);
+    // getcontext(&ppos_task_controller.context);
+    // ppos_task_controller.id = 0;
+    // if (stack)
+    // {
+    //     ppos_task_controller.context.uc_stack.ss_sp = stack;
+    //     ppos_task_controller.context.uc_stack.ss_size = PPOS_TASK_STACK_SIZE;
+    //     ppos_task_controller.context.uc_stack.ss_flags = 0;
+    //     ppos_task_controller.context.uc_link = 0;
+    // }
+    // else
+    // {
+    //     perror("Erro na criação da pilha: ");
+    //     return;
+    // }
+
+    // ppos_task_controller.user_task = 1;
+    // ppos_task_controller.quantum = QUANTUM_INIT;
+    // queue_t *q = (queue_t *)&ppos_task_controller;
+    // queue_append((queue_t **)&q, (queue_t *)&ppos_task_controller);
+    // makecontext(&ppos_task_controller.context, (void *)(*main), 0);
+    // ppos_scheduler.user_tasks++;
+    // task_create(&ppos_task_controller, (void *)(*main), NULL);
+
+    task_t *task = &ppos_task_controller;
+    task->id = ppos_task_id_counter;
+    getcontext(&task->context);
+    stack = malloc(PPOS_TASK_STACK_SIZE);
+    if (stack)
+    {
+        task->context.uc_stack.ss_sp = stack;
+        task->context.uc_stack.ss_size = PPOS_TASK_STACK_SIZE;
+        task->context.uc_stack.ss_flags = 0;
+        task->context.uc_link = 0;
+    }
+    else
+    {
+        perror("Erro na criação da pilha: ");
+        return;
+    }
+    makecontext(&task->context, (void *)(*main), 0, NULL);
+    task->prio_static = 0;
+    task->prio_dinamic = 0;
+    task->quantum = QUANTUM_INIT;
+    task->user_task = 1;
+    task->start_time = ppos_systime;
+    task->start_cicles = 0;
+    task->run_time = 0;
+    queue_t *q = (queue_t *)&ppos_task_controller;
+    queue_append((queue_t **)&q, (queue_t *)task);
+    ppos_scheduler.user_tasks++;
 
     if (ppos_timer_start)
     {
@@ -118,9 +144,7 @@ int task_create(task_t *task,               // descritor da nova tarefa
 // Termina a tarefa corrente, indicando um valor de status encerramento
 void task_exit(int exitCode)
 {
-    int temp = ppos_task_id_actual;
     ppos_interrupt_disable = 1;
-    //nao volta mais para main e sim para o scheduler
     task_t *t = NULL;
     t = &ppos_task_controller;
     while (t->id != ppos_task_id_actual)
@@ -132,8 +156,8 @@ void task_exit(int exitCode)
     //nao rolou liberar a memoria
     // free(t->context.uc_stack.ss_sp);
     ppos_scheduler.user_tasks--;
-    ppos_interrupt_disable = 0;
     printf("Task %d exit: execution time %d ms, processor time %d ms, %d activations\n", t->id, ppos_systime - t->start_time, t->run_time, t->start_cicles);
+    ppos_interrupt_disable = 0;
     swapcontext(&t->context, &ppos_scheduler.dispatcher.context);
 }
 
@@ -166,6 +190,7 @@ void ppos_dispatcher()
 {
     while (ppos_scheduler.user_tasks > 0)
     {
+        ppos_interrupt_disable = 1;
         task_t *current = (task_t *)&ppos_task_controller;
         while (current->id != ppos_task_id_actual)
         {
@@ -174,11 +199,13 @@ void ppos_dispatcher()
         if (current->user_task != 1)
         {
             //can only preempt user tasks
+            ppos_interrupt_disable = 0;
             swapcontext(&ppos_scheduler.dispatcher.context, &current->context);
         }
         else if (current->quantum > 0)
         {
             current->quantum--;
+            ppos_interrupt_disable = 0;
             swapcontext(&ppos_scheduler.dispatcher.context, &current->context);
         }
         else
@@ -233,7 +260,8 @@ void ppos_dispatcher()
             }
             next->start_cicles++;
             ppos_last_time = ppos_systime;
-            printf("Dispather choose %d\n", next->id);
+            // printf("Dispather choose %d\n", next->id);
+            ppos_interrupt_disable = 0;
             swapcontext(&ppos_scheduler.dispatcher.context, &next->context);
         }
     }
@@ -245,8 +273,12 @@ void ppos_dispatcher()
 // prontas ("ready queue")
 void task_yield()
 {
+    if (ppos_interrupt_disable)
+    {
+        return;
+    }
     //this is the function called when timer interrupt
-    printf("task yield\n");
+    // printf("task yield\n");
     ppos_systime++;
     if (ppos_timer_start == 0)
     {

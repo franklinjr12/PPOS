@@ -29,7 +29,7 @@
 // funções gerais ==============================================================
 
 #define PPOS_TASK_STACK_SIZE 32768
-#define QUANTUM_INIT 3
+#define QUANTUM_INIT 20
 #define PREEMP_TIME_US 1000
 #define PREEMP_TIME_S 0
 
