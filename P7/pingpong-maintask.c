@@ -8,7 +8,7 @@
 #include <stdlib.h>
 #include "ppos.h"
 
-#define WORKLOAD 40000
+#define WORKLOAD 10000
 
 task_t Pang, Peng, Ping, Pong, Pung;
 
@@ -58,7 +58,9 @@ int main(int argc, char *argv[])
     task_create(&Pong, Body, "                Pong");
     task_create(&Pung, Body, "                    Pung");
 
+    printf("main begun hardwork\n");
     hardwork(0.75 * WORKLOAD);
+    printf("main ended hardwork\n");
 
     printf("main: fim    em %4d ms\n", systime());
     task_exit(0);

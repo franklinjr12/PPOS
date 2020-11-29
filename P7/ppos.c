@@ -16,7 +16,7 @@ void ppos_init()
     // printf("\niniciando ppos_init\n");
 
     ppos_task_id_counter = 0;
-    ppos_task_id_actual = 0;
+    ppos_task_id_actual = 1;
 
     //init of scheduler
     ppos_scheduler.user_tasks = 0;
@@ -65,33 +65,35 @@ void ppos_init()
     // ppos_scheduler.user_tasks++;
     // task_create(&ppos_task_controller, (void *)(*main), NULL);
 
-    task_t *task = &ppos_task_controller;
-    task->id = ppos_task_id_counter;
-    getcontext(&task->context);
-    stack = malloc(PPOS_TASK_STACK_SIZE);
-    if (stack)
-    {
-        task->context.uc_stack.ss_sp = stack;
-        task->context.uc_stack.ss_size = PPOS_TASK_STACK_SIZE;
-        task->context.uc_stack.ss_flags = 0;
-        task->context.uc_link = 0;
-    }
-    else
-    {
-        perror("Erro na criação da pilha: ");
-        return;
-    }
-    makecontext(&task->context, (void *)(*main), 0, NULL);
-    task->prio_static = 0;
-    task->prio_dinamic = 0;
-    task->quantum = QUANTUM_INIT;
-    task->user_task = 1;
-    task->start_time = ppos_systime;
-    task->start_cicles = 0;
-    task->run_time = 0;
-    queue_t *q = (queue_t *)&ppos_task_controller;
-    queue_append((queue_t **)&q, (queue_t *)task);
-    ppos_scheduler.user_tasks++;
+    // task_t *task = &ppos_task_controller;
+    // task->id = ppos_task_id_counter;
+    // getcontext(&task->context);
+    // stack = malloc(PPOS_TASK_STACK_SIZE);
+    // if (stack)
+    // {
+    //     task->context.uc_stack.ss_sp = stack;
+    //     task->context.uc_stack.ss_size = PPOS_TASK_STACK_SIZE;
+    //     task->context.uc_stack.ss_flags = 0;
+    //     task->context.uc_link = 0;
+    // }
+    // else
+    // {
+    //     perror("Erro na criação da pilha: ");
+    //     return;
+    // }
+    // makecontext(&task->context, (void *)(*main), 0, NULL);
+    // task->prio_static = 0;
+    // task->prio_dinamic = 0;
+    // task->quantum = QUANTUM_INIT;
+    // task->user_task = 1;
+    // task->start_time = ppos_systime;
+    // task->start_cicles = 0;
+    // task->run_time = 0;
+    // queue_t *q = (queue_t *)&ppos_task_controller;
+    // queue_append((queue_t **)&q, (queue_t *)task);
+    // ppos_scheduler.user_tasks++;
+    // task_create(&ppos_task_controller, ppos_fake_main, NULL);
+    task_create(&ppos_task_controller, main, NULL);
 
     if (ppos_timer_start)
     {
@@ -144,6 +146,11 @@ int task_create(task_t *task,               // descritor da nova tarefa
 // Termina a tarefa corrente, indicando um valor de status encerramento
 void task_exit(int exitCode)
 {
+    //gambiarra
+    if (ppos_task_id_actual == 1)
+    {
+        return;
+    }
     ppos_interrupt_disable = 1;
     task_t *t = NULL;
     t = &ppos_task_controller;
@@ -152,12 +159,41 @@ void task_exit(int exitCode)
         t = t->next;
     }
     ppos_task_id_actual = t->prev->id;
-    queue_remove((queue_t **)&ppos_task_controller, (queue_t *)t);
+
+    //ultra gambiarra em acao
+    //begin
+    // task_t *q = (task_t *)queue_remove((queue_t **)&ppos_task_controller, (queue_t *)t);
+    task_t *p = t->prev;
+    task_t *n = t->next;
+    t->prev->next = n;
+    t->next->prev = p;
+    t->next = NULL;
+    t->prev = NULL;
+    //end
+    task_t *q = t;
+    if (q == NULL)
+    {
+        printf("NULL on removing from queue\n");
+    }
+    else
+    {
+        printf("queue after removal: ");
+        task_t *temp = &ppos_task_controller;
+        printf(" %d < %d > %d ", temp->prev->id, temp->id, temp->next->id);
+        temp = temp->next;
+        while (temp != &ppos_task_controller)
+        {
+            printf(" %d < %d > %d ", temp->prev->id, temp->id, temp->next->id);
+            temp = temp->next;
+        }
+        printf("\n");
+    }
     //nao rolou liberar a memoria
     // free(t->context.uc_stack.ss_sp);
     ppos_scheduler.user_tasks--;
     printf("Task %d exit: execution time %d ms, processor time %d ms, %d activations\n", t->id, ppos_systime - t->start_time, t->run_time, t->start_cicles);
     ppos_interrupt_disable = 0;
+    printf("Tasks left: %d\n", ppos_scheduler.user_tasks);
     swapcontext(&t->context, &ppos_scheduler.dispatcher.context);
 }
 
@@ -190,6 +226,12 @@ void ppos_dispatcher()
 {
     while (ppos_scheduler.user_tasks > 0)
     {
+        //gambiarra
+        // if (ppos_scheduler.user_tasks == 1)
+        // {
+        //     printf("Only one task left\n");
+        //     break;
+        // }
         ppos_interrupt_disable = 1;
         task_t *current = (task_t *)&ppos_task_controller;
         while (current->id != ppos_task_id_actual)
@@ -212,7 +254,7 @@ void ppos_dispatcher()
         {
             current->run_time += ppos_systime - ppos_last_time;
             int lesser_prio = 20;
-            int task_id;
+            int task_id = 1;
             current = (task_t *)&ppos_task_controller;
             current = current->next;
             while (current != &ppos_task_controller)
@@ -266,6 +308,7 @@ void ppos_dispatcher()
         }
     }
     ppos_interrupt_disable = 0;
+    printf("Going back to main\n");
     swapcontext(&ppos_scheduler.dispatcher.context, &ppos_task_controller.context);
 }
 
@@ -273,13 +316,13 @@ void ppos_dispatcher()
 // prontas ("ready queue")
 void task_yield()
 {
+    ppos_systime++;
     if (ppos_interrupt_disable)
     {
         return;
     }
     //this is the function called when timer interrupt
     // printf("task yield\n");
-    ppos_systime++;
     if (ppos_timer_start == 0)
     {
         ppos_timer_start = 1;
