@@ -45,7 +45,9 @@ int main(int argc, char *argv[])
    task_create(&Pong, Body, "                Pong");
    task_create(&Pung, Body, "                    Pung");
 
+   printf("antes do yield\n");
    task_yield();
+   printf("depois do yield\n");
 
    printf("main: fim\n");
    exit(0);
